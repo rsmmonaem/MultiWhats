@@ -194,7 +194,143 @@ impl SessionManager {
                             }}
                         }});
 
+                        // 5. Video Call Enhancement: In-Window Fullscreen & Free Resizing
+                        enhanceVideoCall();
+
                         checkUnreadCount();
+                    }}
+
+                    let isVideoMaximized = false;
+                    let savedCallStyle = null;
+
+                    function enhanceVideoCall() {{
+                        const videos = document.querySelectorAll('video');
+                        if (!videos || videos.length === 0) return;
+
+                        const mainVideo = videos[0];
+                        let container = mainVideo.parentElement;
+                        while (container && container !== document.body) {{
+                            const style = window.getComputedStyle(container);
+                            if ((style.position === 'fixed' || style.position === 'absolute') &&
+                                (container.querySelector('button') || container.style.transform || container.style.width)) {{
+                                break;
+                            }}
+                            container = container.parentElement;
+                        }}
+
+                        if (!container || container === document.body) {{
+                            container = mainVideo.closest('[data-animate-modal-popup], [role="dialog"], [data-testid*="call"]') || mainVideo.parentElement.parentElement;
+                        }}
+
+                        if (!container) return;
+
+                        // Enable CSS free resizing so user can drag to resize freely
+                        if (!container.dataset.resizableEnabled) {{
+                            container.dataset.resizableEnabled = "true";
+                            container.style.resize = "both";
+                            container.style.overflow = "hidden";
+                            container.style.minWidth = "320px";
+                            container.style.minHeight = "240px";
+                            container.style.maxWidth = "100vw";
+                            container.style.maxHeight = "100vh";
+                            container.style.boxShadow = "0 25px 60px rgba(0,0,0,0.7)";
+                        }}
+
+                        // Intercept native WhatsApp Fullscreen/Expand buttons
+                        const nativeExpandButtons = container.querySelectorAll('button[aria-label*="Full screen" i], button[aria-label*="Expand" i], button[title*="Full screen" i], [data-icon="expand"], [data-icon="fullscreen"]');
+                        nativeExpandButtons.forEach(btn => {{
+                            if (!btn.dataset.intercepted) {{
+                                btn.dataset.intercepted = "true";
+                                btn.addEventListener('click', function(e) {{
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleMaximizeCall(container);
+                                }}, true);
+                            }}
+                        }});
+
+                        // Inject custom Maximize / Fullscreen button on top right of the call card
+                        if (!container.querySelector('.multiwhats-fullscreen-btn')) {{
+                            const maxBtn = document.createElement('button');
+                            maxBtn.className = 'multiwhats-fullscreen-btn';
+                            maxBtn.type = "button";
+                            maxBtn.title = "Fullscreen / Maximize Video Call";
+                            maxBtn.innerHTML = `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                </svg>
+                            `;
+                            maxBtn.style.cssText = "position: absolute; top: 12px; right: 12px; z-index: 9999999; background: rgba(0,0,0,0.65); backdrop-filter: blur(10px); border: 1.5px solid rgba(255,255,255,0.3); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; transition: all 0.15s ease-out;";
+                            maxBtn.onmouseenter = () => {{ maxBtn.style.background = "rgba(16,185,129,0.9)"; maxBtn.style.transform = "scale(1.08)"; }};
+                            maxBtn.onmouseleave = () => {{ maxBtn.style.background = "rgba(0,0,0,0.65)"; maxBtn.style.transform = "scale(1)"; }};
+                            maxBtn.onclick = function(e) {{
+                                e.stopPropagation();
+                                toggleMaximizeCall(container);
+                            }};
+                            container.appendChild(maxBtn);
+
+                            // Double click on video also toggles fullscreen
+                            mainVideo.ondblclick = function(e) {{
+                                e.stopPropagation();
+                                toggleMaximizeCall(container);
+                            }};
+                        }}
+                    }}
+
+                    function toggleMaximizeCall(container) {{
+                        isVideoMaximized = !isVideoMaximized;
+                        const maxBtn = container.querySelector('.multiwhats-fullscreen-btn');
+                        if (isVideoMaximized) {{
+                            savedCallStyle = {{
+                                position: container.style.position,
+                                inset: container.style.inset,
+                                top: container.style.top,
+                                left: container.style.left,
+                                right: container.style.right,
+                                bottom: container.style.bottom,
+                                width: container.style.width,
+                                height: container.style.height,
+                                transform: container.style.transform,
+                                borderRadius: container.style.borderRadius,
+                                zIndex: container.style.zIndex
+                            }};
+                            container.style.position = "fixed";
+                            container.style.top = "0px";
+                            container.style.left = "0px";
+                            container.style.right = "0px";
+                            container.style.bottom = "0px";
+                            container.style.width = "100vw";
+                            container.style.height = "100vh";
+                            container.style.transform = "none";
+                            container.style.borderRadius = "0px";
+                            container.style.zIndex = "9999998";
+                            if (maxBtn) {{
+                                maxBtn.title = "Restore Floating Window";
+                                maxBtn.innerHTML = `
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
+                                    </svg>
+                                `;
+                            }}
+                        }} else {{
+                            if (savedCallStyle) {{
+                                Object.assign(container.style, savedCallStyle);
+                            }} else {{
+                                container.style.position = "absolute";
+                                container.style.width = "640px";
+                                container.style.height = "480px";
+                                container.style.transform = "none";
+                                container.style.borderRadius = "16px";
+                            }}
+                            if (maxBtn) {{
+                                maxBtn.title = "Fullscreen / Maximize Video Call";
+                                maxBtn.innerHTML = `
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                    </svg>
+                                `;
+                            }}
+                        }}
                     }}
 
                     if (document.readyState === 'loading') {{
