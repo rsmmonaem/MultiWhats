@@ -100,14 +100,22 @@ impl SessionManager {
                         }};
                     }}
 
-                    // 2. Desktop Notification Native Bridge
+                    // 2. Desktop Notification Native Bridge & Auto-Permission
                     try {{
-                        if (window.Notification) {{
+                        const grantNotification = function(callback) {{
+                            if (typeof callback === 'function') {{
+                                try {{ callback('granted'); }} catch(e) {{}}
+                            }}
+                            return Promise.resolve('granted');
+                        }};
+
+                        if (typeof window.Notification !== 'undefined') {{
                             Object.defineProperty(window.Notification, 'permission', {{
                                 get: () => 'granted',
+                                set: () => {{}},
                                 configurable: true
                             }});
-                            window.Notification.requestPermission = () => Promise.resolve('granted');
+                            window.Notification.requestPermission = grantNotification;
 
                             const OriginalNotification = window.Notification;
                             window.Notification = function(title, options) {{
@@ -125,7 +133,8 @@ impl SessionManager {
                                 return new OriginalNotification(title, options);
                             }};
                             window.Notification.permission = 'granted';
-                            window.Notification.requestPermission = () => Promise.resolve('granted');
+                            window.Notification.requestPermission = grantNotification;
+                            window.Notification.prototype = OriginalNotification.prototype;
                         }}
                     }} catch (e) {{
                         console.error('Notification bridge setup error:', e);
@@ -149,8 +158,9 @@ impl SessionManager {
                         }}
                     }}
 
-                    // 4. Clean "Download WhatsApp for Mac" promo banner
+                    // 4. Clean "Download WhatsApp for Mac" promo banner & Auto-dismiss notification prompts
                     function cleanWhatsAppUI() {{
+                        // Hide desktop download promo
                         const links = document.querySelectorAll('a[href*="whatsapp.com/download"]');
                         links.forEach(link => {{
                             const container = link.closest('div');
@@ -158,6 +168,32 @@ impl SessionManager {
                                 container.style.display = 'none';
                             }}
                         }});
+
+                        // Auto-dismiss "Allow notifications" in-page modal
+                        const buttons = document.querySelectorAll('button, div[role="button"]');
+                        buttons.forEach(btn => {{
+                            const text = (btn.textContent || '').trim().toLowerCase();
+                            if (text === 'ok' || text === 'turn on') {{
+                                const modal = btn.closest('[data-animate-modal-popup], [role="dialog"], [role="alertdialog"], div');
+                                if (modal && modal.textContent && modal.textContent.includes('Allow notifications')) {{
+                                    if (text === 'ok') {{
+                                        btn.click();
+                                    }}
+                                }}
+                            }}
+                        }});
+
+                        // Hide or dismiss "Message and call notifications are off"
+                        const banners = document.querySelectorAll('div');
+                        banners.forEach(b => {{
+                            if (b.textContent && b.textContent.includes('Message and call notifications are off') && b.children.length < 5) {{
+                                const closeBtn = b.querySelector('button, [data-icon="x"]');
+                                if (closeBtn) {{
+                                    closeBtn.click();
+                                }}
+                            }}
+                        }});
+
                         checkUnreadCount();
                     }}
 
@@ -166,7 +202,7 @@ impl SessionManager {
                     }} else {{
                         cleanWhatsAppUI();
                     }}
-                    setInterval(cleanWhatsAppUI, 1200);
+                    setInterval(cleanWhatsAppUI, 800);
                 }})();
                 "#,
                 account_id = account.id,
