@@ -20,11 +20,17 @@ import { AddAccountModal } from "./components/AddAccountModal";
 import { AccountSettingsModal } from "./components/AccountSettingsModal";
 import { SystemInfoModal } from "./components/SystemInfoModal";
 import { checkForAppUpdates, installAndRelaunch } from "./services/updater";
+import { listen } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+} from "@tauri-apps/plugin-notification";
 import "./App.css";
 
 export const App: React.FC = () => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -34,8 +40,14 @@ export const App: React.FC = () => {
   const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Check for auto-updates in background
+  // Check for auto-updates & native notification permission
   useEffect(() => {
+    isPermissionGranted().then((granted) => {
+      if (!granted) {
+        requestPermission().catch(() => {});
+      }
+    });
+
     checkForAppUpdates()
       .then((res) => {
         if (res.hasUpdate && res.version) {
@@ -43,6 +55,20 @@ export const App: React.FC = () => {
         }
       })
       .catch(() => {});
+
+    const unlisten = listen<{ account_id: string; count: number }>(
+      "unread_count_updated",
+      (event) => {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [event.payload.account_id]: event.payload.count,
+        }));
+      }
+    );
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -270,6 +296,7 @@ export const App: React.FC = () => {
       <Sidebar
         accounts={accounts}
         activeAccountId={activeAccountId}
+        unreadCounts={unreadCounts}
         onSelectAccount={handleSelectAccount}
         onOpenAddModal={() => setIsAddModalOpen(true)}
         onOpenSettingsModal={(acc) => setEditingAccount(acc)}

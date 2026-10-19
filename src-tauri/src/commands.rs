@@ -141,3 +141,73 @@ pub fn get_system_info() -> Result<SystemInfo, String> {
 pub fn restart_app(app: AppHandle) {
     app.restart();
 }
+
+#[tauri::command]
+pub fn send_native_notification(
+    app: AppHandle,
+    title: String,
+    body: String,
+    account_id: Option<String>,
+) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+
+    let display_title = if let Some(ref acc_id) = account_id {
+        format!("MultiWhats • {} ({})", title, acc_id)
+    } else {
+        title
+    };
+
+    let _ = app
+        .notification()
+        .builder()
+        .title(display_title)
+        .body(body)
+        .show();
+
+    Ok(())
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct UnreadUpdatePayload {
+    pub account_id: String,
+    pub count: u32,
+}
+
+#[tauri::command]
+pub fn update_unread_count(
+    app: AppHandle,
+    account_id: String,
+    count: u32,
+) -> Result<(), String> {
+    use tauri::Emitter;
+
+    // Emit event to frontend so sidebar account item updates its badge
+    let _ = app.emit(
+        "unread_count_updated",
+        UnreadUpdatePayload {
+            account_id: account_id.clone(),
+            count,
+        },
+    );
+
+    // Update native macOS Dock badge
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::NSApplication;
+        use objc2_foundation::{MainThreadMarker, NSString};
+
+        if let Some(mtm) = MainThreadMarker::new() {
+            let ns_app = NSApplication::sharedApplication(mtm);
+            let dock_tile = ns_app.dockTile();
+            if count > 0 {
+                let badge_str = count.to_string();
+                let ns_str = NSString::from_str(&badge_str);
+                dock_tile.setBadgeLabel(Some(&ns_str));
+            } else {
+                dock_tile.setBadgeLabel(None);
+            }
+        }
+    }
+
+    Ok(())
+}

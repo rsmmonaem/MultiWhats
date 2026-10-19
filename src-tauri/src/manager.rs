@@ -76,30 +76,116 @@ impl SessionManager {
                     .map_err(|e| format!("Invalid URL: {}", e))?,
             );
 
-            const CLEAN_UI_SCRIPT: &str = r#"
-            (function() {
-                function cleanWhatsAppUI() {
-                    const links = document.querySelectorAll('a[href*="whatsapp.com/download"]');
-                    links.forEach(link => {
-                        const container = link.closest('div');
-                        if (container && container.textContent && container.textContent.includes('Download WhatsApp')) {
-                            container.style.display = 'none';
-                        }
-                    });
-                }
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', cleanWhatsAppUI);
-                } else {
-                    cleanWhatsAppUI();
-                }
-                setInterval(cleanWhatsAppUI, 1500);
-            })();
-            "#;
+            let init_script = format!(
+                r#"
+                (function() {{
+                    const ACCOUNT_ID = "{account_id}";
+                    const ACCOUNT_NAME = "{account_name}";
 
-            // Construct isolated child webview with platform-optimized isolation
+                    // 1. Microphone & Camera Permission Mock for WhatsApp Call Readiness
+                    if (navigator.permissions && navigator.permissions.query) {{
+                        const origQuery = navigator.permissions.query.bind(navigator.permissions);
+                        navigator.permissions.query = function(param) {{
+                            if (param && (param.name === 'microphone' || param.name === 'camera' || param.name === 'notifications')) {{
+                                return Promise.resolve({{
+                                    state: 'granted',
+                                    name: param.name,
+                                    onchange: null,
+                                    addEventListener: function() {{}},
+                                    removeEventListener: function() {{}},
+                                    dispatchEvent: function() {{ return false; }}
+                                }});
+                            }}
+                            return origQuery(param);
+                        }};
+                    }}
+
+                    // 2. Desktop Notification Native Bridge
+                    try {{
+                        if (window.Notification) {{
+                            Object.defineProperty(window.Notification, 'permission', {{
+                                get: () => 'granted',
+                                configurable: true
+                            }});
+                            window.Notification.requestPermission = () => Promise.resolve('granted');
+
+                            const OriginalNotification = window.Notification;
+                            window.Notification = function(title, options) {{
+                                try {{
+                                    if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {{
+                                        window.__TAURI_INTERNALS__.invoke('send_native_notification', {{
+                                            title: title || ACCOUNT_NAME,
+                                            body: options?.body || 'New WhatsApp message received',
+                                            accountId: ACCOUNT_ID
+                                        }});
+                                    }}
+                                }} catch (e) {{
+                                    console.error('MultiWhats native notification dispatch error:', e);
+                                }}
+                                return new OriginalNotification(title, options);
+                            }};
+                            window.Notification.permission = 'granted';
+                            window.Notification.requestPermission = () => Promise.resolve('granted');
+                        }}
+                    }} catch (e) {{
+                        console.error('Notification bridge setup error:', e);
+                    }}
+
+                    // 3. Unread Message & Incoming Call Title Observer
+                    let lastUnread = -1;
+                    function checkUnreadCount() {{
+                        const match = document.title.match(/\((\d+)\)/);
+                        const count = match ? parseInt(match[1], 10) : 0;
+                        if (count !== lastUnread) {{
+                            lastUnread = count;
+                            try {{
+                                if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {{
+                                    window.__TAURI_INTERNALS__.invoke('update_unread_count', {{
+                                        accountId: ACCOUNT_ID,
+                                        count: count
+                                    }});
+                                }}
+                            }} catch (e) {{}}
+                        }}
+                    }}
+
+                    // 4. Clean "Download WhatsApp for Mac" promo banner
+                    function cleanWhatsAppUI() {{
+                        const links = document.querySelectorAll('a[href*="whatsapp.com/download"]');
+                        links.forEach(link => {{
+                            const container = link.closest('div');
+                            if (container && container.textContent && container.textContent.includes('Download WhatsApp')) {{
+                                container.style.display = 'none';
+                            }}
+                        }});
+                        checkUnreadCount();
+                    }}
+
+                    if (document.readyState === 'loading') {{
+                        document.addEventListener('DOMContentLoaded', cleanWhatsAppUI);
+                    }} else {{
+                        cleanWhatsAppUI();
+                    }}
+                    setInterval(cleanWhatsAppUI, 1200);
+                }})();
+                "#,
+                account_id = account.id,
+                account_name = account.name.replace('"', "\\\"")
+            );
+
+            // Construct isolated child webview with platform-optimized isolation and media permissions
             let mut builder = WebviewBuilder::new(&target_label, url)
                 .user_agent(DESKTOP_USER_AGENT)
-                .initialization_script(CLEAN_UI_SCRIPT)
+                .initialization_script(&init_script)
+                .on_permission_request(|_webview, kind| {
+                    use tauri::webview::{PermissionKind, PermissionResponse};
+                    match kind {
+                        PermissionKind::Microphone => PermissionResponse::Allow,
+                        PermissionKind::Camera => PermissionResponse::Allow,
+                        PermissionKind::Notifications => PermissionResponse::Allow,
+                        _ => PermissionResponse::Allow,
+                    }
+                })
                 .auto_resize();
 
             #[cfg(target_os = "macos")]

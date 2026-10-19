@@ -7,6 +7,7 @@ import { Logo } from "./Logo";
 interface SidebarProps {
   accounts: Account[];
   activeAccountId: string | null;
+  unreadCounts?: Record<string, number>;
   onSelectAccount: (id: string) => void;
   onOpenAddModal: () => void;
   onOpenSettingsModal: (account: Account) => void;
@@ -18,6 +19,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   accounts,
   activeAccountId,
+  unreadCounts = {},
   onSelectAccount,
   onOpenAddModal,
   onOpenSettingsModal,
@@ -98,17 +100,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="text-sm font-medium truncate">
                       {account.name}
                     </span>
-                    {shortcutNum && (
-                      <kbd
-                        className={`hidden group-hover:inline-block text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                          theme === "dark"
-                            ? "bg-[#383846] text-gray-400"
-                            : "bg-gray-200 text-gray-500"
-                        }`}
-                      >
-                        ⌘{shortcutNum}
-                      </kbd>
-                    )}
+                    <div className="flex items-center space-x-1.5 ml-auto">
+                      {(unreadCounts[account.id] || 0) > 0 && (
+                        <span className="px-1.5 py-0.2 bg-emerald-500 text-white font-bold text-[10px] rounded-full shadow-sm animate-pulse min-w-4 text-center">
+                          {unreadCounts[account.id]}
+                        </span>
+                      )}
+                      {shortcutNum && (
+                        <kbd
+                          className={`hidden group-hover:inline-block text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                            theme === "dark"
+                              ? "bg-[#383846] text-gray-400"
+                              : "bg-gray-200 text-gray-500"
+                          }`}
+                        >
+                          ⌘{shortcutNum}
+                        </kbd>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1.5 mt-0.5">
                     <span

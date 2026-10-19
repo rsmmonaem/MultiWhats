@@ -15,6 +15,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Determine application data directory for SQLite database storage
             let app_data_dir = app
@@ -55,6 +56,8 @@ pub fn run() {
             get_setting,
             set_setting,
             restart_app,
+            send_native_notification,
+            update_unread_count,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MultiWhats desktop application");

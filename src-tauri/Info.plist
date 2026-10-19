@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>MultiWhats needs access to your microphone to record voice messages and make WhatsApp voice calls.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>MultiWhats needs access to your camera for WhatsApp video calls.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>MultiWhats uses Bluetooth to connect with wireless audio headsets.</string>
+</dict>
+</plist>
