@@ -100,6 +100,34 @@ impl SessionManager {
                         }};
                     }}
 
+                    // 1b. Window.open Popups Auto-Allow Bridge
+                    try {{
+                        const origOpen = window.open;
+                        window.open = function(url, target, features) {{
+                            try {{
+                                if (origOpen) {{
+                                    const win = origOpen.apply(this, arguments);
+                                    if (win) return win;
+                                }}
+                            }} catch(e) {{}}
+
+                            // Fallback compliant WindowProxy so WhatsApp popup permission check always succeeds
+                            return {{
+                                closed: false,
+                                focus: function() {{}},
+                                blur: function() {{}},
+                                close: function() {{ this.closed = true; }},
+                                postMessage: function() {{}},
+                                addEventListener: function() {{}},
+                                removeEventListener: function() {{}},
+                                document: {{ write: function() {{}}, open: function() {{}}, close: function() {{}} }},
+                                location: {{ href: url || '' }}
+                            }};
+                        }};
+                    }} catch(e) {{
+                        console.error('Popup bridge init error:', e);
+                    }}
+
                     // 2. Desktop Notification Native Bridge & Auto-Permission
                     try {{
                         const grantNotification = function(callback) {{
@@ -207,6 +235,19 @@ impl SessionManager {
                                 const closeBtn = b.querySelector('button, [data-icon="x"]');
                                 if (closeBtn) {{
                                     closeBtn.click();
+                                }}
+                            }}
+                        }});
+
+                        // Auto-dismiss "To open calls in a separate window, allow pop-ups" prompt
+                        const popupBanners = document.querySelectorAll('div, [role="alertdialog"], [role="dialog"]');
+                        popupBanners.forEach(p => {{
+                            if (p.textContent && (p.textContent.includes('allow pop-ups') || p.textContent.includes('pop-up windows'))) {{
+                                const closeBtn = p.querySelector('button, [data-icon="x"]');
+                                if (closeBtn) {{
+                                    closeBtn.click();
+                                }} else if (p.children.length < 6) {{
+                                    p.style.display = 'none';
                                 }}
                             }}
                         }});
@@ -374,6 +415,9 @@ impl SessionManager {
                         PermissionKind::Notifications => PermissionResponse::Allow,
                         _ => PermissionResponse::Allow,
                     }
+                })
+                .on_new_window(|_url, _features| {
+                    tauri::webview::NewWindowResponse::Allow
                 })
                 .auto_resize();
 
