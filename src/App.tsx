@@ -14,7 +14,7 @@ import {
   setSetting,
 } from "./services/api";
 import { Sidebar } from "./components/Sidebar";
-import { Header } from "./components/Header";
+import { Header, type InAppNotification } from "./components/Header";
 import { EmptyState } from "./components/EmptyState";
 import { AddAccountModal } from "./components/AddAccountModal";
 import { AccountSettingsModal } from "./components/AccountSettingsModal";
@@ -39,6 +39,7 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [activeNotification, setActiveNotification] = useState<InAppNotification | null>(null);
 
   // Check for auto-updates & native notification permission
   useEffect(() => {
@@ -56,7 +57,7 @@ export const App: React.FC = () => {
       })
       .catch(() => {});
 
-    const unlisten = listen<{ account_id: string; count: number }>(
+    const unlistenUnread = listen<{ account_id: string; count: number }>(
       "unread_count_updated",
       (event) => {
         setUnreadCounts((prev) => ({
@@ -66,10 +67,34 @@ export const App: React.FC = () => {
       }
     );
 
+    const unlistenNotify = listen<{
+      account_id: string;
+      account_name: string;
+      title: string;
+      body: string;
+    }>("incoming_notification", (event) => {
+      setActiveNotification({
+        accountId: event.payload.account_id,
+        accountName: event.payload.account_name,
+        title: event.payload.title,
+        body: event.payload.body,
+      });
+    });
+
     return () => {
-      unlisten.then((fn) => fn());
+      unlistenUnread.then((fn) => fn());
+      unlistenNotify.then((fn) => fn());
     };
   }, []);
+
+  // Auto-dismiss in-app notification pill after 6 seconds
+  useEffect(() => {
+    if (!activeNotification) return;
+    const timer = setTimeout(() => {
+      setActiveNotification(null);
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [activeNotification]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -323,6 +348,9 @@ export const App: React.FC = () => {
           }}
           theme={theme}
           isReloading={isReloading}
+          activeNotification={activeNotification}
+          onDismissNotification={() => setActiveNotification(null)}
+          onNotificationClick={(id) => handleSelectAccount(id)}
         />
 
         {/* Update Notification Banner */}

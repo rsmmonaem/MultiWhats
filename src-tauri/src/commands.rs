@@ -142,27 +142,65 @@ pub fn restart_app(app: AppHandle) {
     app.restart();
 }
 
+#[derive(serde::Serialize, Clone)]
+pub struct InAppNotificationPayload {
+    pub account_id: String,
+    pub account_name: String,
+    pub title: String,
+    pub body: String,
+}
+
 #[tauri::command]
 pub fn send_native_notification(
     app: AppHandle,
     title: String,
     body: String,
     account_id: Option<String>,
+    account_name: Option<String>,
 ) -> Result<(), String> {
+    use tauri::Emitter;
     use tauri_plugin_notification::NotificationExt;
 
-    let display_title = if let Some(ref acc_id) = account_id {
-        format!("MultiWhats • {} ({})", title, acc_id)
+    let acc_id = account_id.clone().unwrap_or_default();
+    let acc_name = account_name
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "WhatsApp".to_string());
+
+    let display_title = if !acc_name.is_empty() && acc_name != title {
+        format!("{} • {}", title, acc_name)
     } else {
-        title
+        title.clone()
     };
 
+    // 1. Show System notification (works when app is in background/minimized)
     let _ = app
         .notification()
         .builder()
-        .title(display_title)
-        .body(body)
+        .title(&display_title)
+        .body(&body)
         .show();
+
+    // 2. Play native macOS notification sound
+    #[cfg(target_os = "macos")]
+    {
+        std::thread::spawn(|| {
+            let _ = std::process::Command::new("afplay")
+                .arg("/System/Library/Sounds/Glass.aiff")
+                .output();
+        });
+    }
+
+    // 3. Emit in-app notification event so React frontend can display a floating banner in the Header
+    let _ = app.emit(
+        "incoming_notification",
+        InAppNotificationPayload {
+            account_id: acc_id,
+            account_name: acc_name,
+            title,
+            body,
+        },
+    );
 
     Ok(())
 }
@@ -173,6 +211,9 @@ pub struct UnreadUpdatePayload {
     pub count: u32,
 }
 
+static UNREAD_MAP: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, u32>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
 #[tauri::command]
 pub fn update_unread_count(
     app: AppHandle,
@@ -181,16 +222,22 @@ pub fn update_unread_count(
 ) -> Result<(), String> {
     use tauri::Emitter;
 
+    let total_count: u32 = {
+        let mut map = UNREAD_MAP.lock().unwrap();
+        map.insert(account_id.clone(), count);
+        map.values().sum()
+    };
+
     // Emit event to frontend so sidebar account item updates its badge
     let _ = app.emit(
         "unread_count_updated",
         UnreadUpdatePayload {
-            account_id: account_id.clone(),
+            account_id,
             count,
         },
     );
 
-    // Update native macOS Dock badge
+    // Update native macOS Dock badge with total unread across all accounts
     #[cfg(target_os = "macos")]
     {
         use objc2_app_kit::NSApplication;
@@ -199,8 +246,8 @@ pub fn update_unread_count(
         if let Some(mtm) = MainThreadMarker::new() {
             let ns_app = NSApplication::sharedApplication(mtm);
             let dock_tile = ns_app.dockTile();
-            if count > 0 {
-                let badge_str = count.to_string();
+            if total_count > 0 {
+                let badge_str = total_count.to_string();
                 let ns_str = NSString::from_str(&badge_str);
                 dock_tile.setBadgeLabel(Some(&ns_str));
             } else {
@@ -211,3 +258,4 @@ pub fn update_unread_count(
 
     Ok(())
 }
+

@@ -117,14 +117,17 @@ impl SessionManager {
                             }});
                             window.Notification.requestPermission = grantNotification;
 
+                            let lastNotificationTime = 0;
                             const OriginalNotification = window.Notification;
                             window.Notification = function(title, options) {{
+                                lastNotificationTime = Date.now();
                                 try {{
                                     if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {{
                                         window.__TAURI_INTERNALS__.invoke('send_native_notification', {{
                                             title: title || ACCOUNT_NAME,
                                             body: options?.body || 'New WhatsApp message received',
-                                            accountId: ACCOUNT_ID
+                                            accountId: ACCOUNT_ID,
+                                            accountName: ACCOUNT_NAME
                                         }});
                                     }}
                                 }} catch (e) {{
@@ -142,10 +145,12 @@ impl SessionManager {
 
                     // 3. Unread Message & Incoming Call Title Observer
                     let lastUnread = -1;
+                    let lastUnreadAlertTime = 0;
                     function checkUnreadCount() {{
                         const match = document.title.match(/\((\d+)\)/);
                         const count = match ? parseInt(match[1], 10) : 0;
                         if (count !== lastUnread) {{
+                            const isNewMessage = (lastUnread !== -1 && count > lastUnread);
                             lastUnread = count;
                             try {{
                                 if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {{
@@ -153,6 +158,18 @@ impl SessionManager {
                                         accountId: ACCOUNT_ID,
                                         count: count
                                     }});
+
+                                    // If new message arrives in foreground and WhatsApp Web bypassed window.Notification,
+                                    // dispatch native alert so user gets audio chime and in-app banner!
+                                    if (isNewMessage && (Date.now() - lastUnreadAlertTime > 2500)) {{
+                                        lastUnreadAlertTime = Date.now();
+                                        window.__TAURI_INTERNALS__.invoke('send_native_notification', {{
+                                            title: ACCOUNT_NAME,
+                                            body: count === 1 ? 'New WhatsApp message received' : `${{count}} new unread messages`,
+                                            accountId: ACCOUNT_ID,
+                                            accountName: ACCOUNT_NAME
+                                        }});
+                                    }}
                                 }}
                             }} catch (e) {{}}
                         }}

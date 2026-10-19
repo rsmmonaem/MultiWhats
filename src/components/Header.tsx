@@ -1,7 +1,14 @@
 import React from "react";
-import { RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { RefreshCw, LogOut, Settings, ShieldCheck, Bell, X } from "lucide-react";
 import type { Account } from "../types";
 import { AccountIcon } from "./AccountIcon";
+
+export interface InAppNotification {
+  accountId: string;
+  accountName: string;
+  title: string;
+  body: string;
+}
 
 interface HeaderProps {
   activeAccount: Account | null;
@@ -10,6 +17,9 @@ interface HeaderProps {
   onOpenSettings: () => void;
   theme: "dark" | "light";
   isReloading: boolean;
+  activeNotification?: InAppNotification | null;
+  onDismissNotification?: () => void;
+  onNotificationClick?: (accountId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +29,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   theme,
   isReloading,
+  activeNotification,
+  onDismissNotification,
+  onNotificationClick,
 }) => {
   return (
     <header
@@ -55,6 +68,53 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         )}
       </div>
+
+      {/* Center: Live In-App Notification Pill */}
+      {activeNotification && (
+        <div
+          onClick={() => {
+            if (activeNotification.accountId && onNotificationClick) {
+              onNotificationClick(activeNotification.accountId);
+            }
+            if (onDismissNotification) {
+              onDismissNotification();
+            }
+          }}
+          className={`flex items-center space-x-2 px-3 py-1 rounded-full cursor-pointer shadow-lg backdrop-blur-md transition-all duration-200 pointer-events-auto max-w-sm sm:max-w-md ${
+            theme === "dark"
+              ? "bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-900"
+              : "bg-emerald-50 border border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+          }`}
+          title="Click to switch to this account"
+        >
+          <Bell size={12} className="text-emerald-400 shrink-0 animate-bounce" />
+          <span className="text-[11px] font-semibold shrink-0">
+            {activeNotification.accountName}:
+          </span>
+          <span className="text-[11px] truncate font-medium">
+            {activeNotification.title} — {activeNotification.body}
+          </span>
+          {activeNotification.accountId &&
+            activeAccount &&
+            activeNotification.accountId !== activeAccount.id && (
+              <span className="text-[9px] bg-emerald-500 text-white font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0">
+                Switch
+              </span>
+            )}
+          {onDismissNotification && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDismissNotification();
+              }}
+              className="p-0.5 hover:text-white rounded shrink-0 opacity-70 hover:opacity-100"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Right: Actions */}
       {activeAccount && (
