@@ -30,7 +30,7 @@ Get the latest production-ready installer for your operating system:
 
 | Operating System | Architecture | Installer Type | Direct Download Link |
 |:---|:---|:---|:---|
-| 🍏 **macOS** | **Apple Silicon (M1 / M2 / M3 / M4)** | Disk Image (`.dmg`) | [⬇️ **Download MultiWhats for Apple Silicon**](https://github.com/rsmmonaem/MultiWhats/releases/latest) |
+| 🍏 **macOS** | **Apple Silicon (M1 / M2 / M3 / M4)** | Disk Image (`.dmg`) | [⬇️ **Download MultiWhats for Apple Silicon (.dmg)**](https://github.com/rsmmonaem/MultiWhats/releases/download/v1.0.0/MultiWhats_1.0.0_aarch64.dmg) |
 | 🍏 **macOS** | **Intel Core (x86_64)** | Disk Image (`.dmg`) | [⬇️ **Download MultiWhats for Intel Mac**](https://github.com/rsmmonaem/MultiWhats/releases/latest) |
 | 🪟 **Windows** | **Windows 10 / 11 (64-bit)** | Standard Setup (`.exe`) | [⬇️ **Download MultiWhats for Windows (EXE)**](https://github.com/rsmmonaem/MultiWhats/releases/latest) |
 | 🪟 **Windows** | **Enterprise / IT Admin** | MSI Package (`.msi`) | [⬇️ **Download MultiWhats Windows MSI**](https://github.com/rsmmonaem/MultiWhats/releases/latest) |
