@@ -104,10 +104,18 @@ impl SessionManager {
                     try {{
                         const origOpen = window.open;
                         window.open = function(url, target, features) {{
+                            // Ensure the call window opens large enough (at least 960x700) so WhatsApp never shows "Make this window larger"
+                            let enhancedFeatures = features || '';
+                            if (!enhancedFeatures || enhancedFeatures.includes('width=') || enhancedFeatures.includes('height=')) {{
+                                enhancedFeatures = 'width=960,height=700,resizable=yes,scrollbars=yes';
+                            }}
                             try {{
                                 if (origOpen) {{
-                                    const win = origOpen.apply(this, arguments);
-                                    if (win) return win;
+                                    const win = origOpen.call(this, url, target, enhancedFeatures);
+                                    if (win) {{
+                                        try {{ win.resizeTo(960, 700); }} catch(e) {{}}
+                                        return win;
+                                    }}
                                 }}
                             }} catch(e) {{}}
 
