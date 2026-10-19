@@ -1,7 +1,7 @@
 [package]
 name = "multiwhats"
 version = "1.0.0"
-description = "Professional Multi-Account WhatsApp Desktop App for macOS"
+description = "Multi-Account WhatsApp Desktop Client for macOS & Windows with True Hardware-Level Session Isolation"
 authors = ["MOHAMMAD MUNAYAM SOWDAGOR <72827332+rsmmonaem@users.noreply.github.com>"]
 repository = "https://github.com/rsmmonaem/MultiWhats"
 homepage = "https://github.com/rsmmonaem/MultiWhats"
